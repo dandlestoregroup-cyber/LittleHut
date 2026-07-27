@@ -1,260 +1,148 @@
 'use client'
 
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { 
-  Building, 
-  Brain, 
-  Smartphone, 
-  Users, 
-  TrendingUp, 
-  Clock,
-  Shield,
-  Globe,
-  ChevronRight,
-  Star,
-  Zap
-} from 'lucide-react'
-import { useLanguage } from '@/contexts/LanguageContext'
-import { LanguageToggle } from '@/components/LanguageToggle'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-const features = [
-  {
-    icon: Brain,
-    titleEn: 'AI-Powered Optimization',
-    titleAr: 'تحسين بالذكاء الاصطناعي',
-    descEn: 'Automated listing optimization and pricing recommendations using Claude AI',
-    descAr: 'تحسين تلقائي للإعلانات وتوصيات الأسعار باستخدام ذكاء Claude الاصطناعي'
-  },
-  {
-    icon: Smartphone,
-    titleEn: 'Smart Lock Integration',
-    titleAr: 'تكامل الأقفال الذكية',
-    descEn: 'Dynamic PIN generation with automatic expiration via Tuya Cloud API',
-    descAr: 'إنشاء رقم سري ديناميكي مع انتهاء صالحية تلقائي عبر Tuya Cloud API'
-  },
-  {
-    icon: Users,
-    titleEn: 'Guest Portal',
-    titleAr: 'بوابة النزلاء',
-    descEn: '3-step check-in flow with contract signing and payment processing',
-    descAr: 'عملية تسجيل وصول من 3 خطوات مع توقيع العقد ومعالجة الدفع'
-  },
-  {
-    icon: Clock,
-    titleEn: 'Automated Cleaning',
-    titleAr: 'تنظيف آلي',
-    descEn: 'Smart cleaning task creation with Telegram notifications and Notion integration',
-    descAr: 'إنشاء مهام تنظيف ذكية مع إشعارات تليجرام وتكامل Notion'
-  }
-]
+const PHONE = '01270228656'
+const WA = '201270228656'
 
-const stats = [
-  { value: '50+', labelEn: 'Properties Managed', labelAr: 'عقار مُدار' },
-  { value: '98%', labelEn: 'Guest Satisfaction', labelAr: 'رضا النزلاء' },
-  { value: '35%', labelEn: 'Revenue Increase', labelAr: 'زيادة الإيرادات' },
-  { value: '24/7', labelEn: 'AI Monitoring', labelAr: 'مراقبة الذكاء الاصطناعي' }
-]
+type Enquiry = {
+  reference: string
+  checkIn: string
+  checkOut: string
+  adults: number
+  children: number
+  ages: string
+  stayType: string
+  name: string
+  mobile: string
+  notes: string
+  createdAt: string
+}
+
+function makeRef(prefix: string) {
+  return `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+}
 
 export default function HomePage() {
-  const { language } = useLanguage()
+  const [children, setChildren] = useState(0)
+  const [error, setError] = useState('')
+  const [ready, setReady] = useState<{ message: string; reference: string } | null>(null)
+  const minDate = useMemo(() => new Date().toISOString().slice(0, 10), [])
+
+  useEffect(() => {
+    const draft = localStorage.getItem('lhv-enquiry-draft')
+    if (!draft) return
+    try {
+      const value = JSON.parse(draft)
+      setChildren(Number(value.children || 0))
+      Object.entries(value).forEach(([key, val]) => {
+        const field = document.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`[name="${key}"]`)
+        if (field && typeof val === 'string') field.value = val
+      })
+    } catch {}
+  }, [])
+
+  function saveDraft(form: HTMLFormElement) {
+    const data = Object.fromEntries(new FormData(form).entries())
+    localStorage.setItem('lhv-enquiry-draft', JSON.stringify(data))
+  }
+
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    const form = e.currentTarget
+    saveDraft(form)
+    const data = Object.fromEntries(new FormData(form).entries()) as Record<string, string>
+    if (data.checkIn < minDate) return setError('Check-in cannot be in the past.')
+    if (!data.checkOut || data.checkOut <= data.checkIn) return setError('Check-out must be later than check-in.')
+    if (Number(data.children) > 0 && !data.ages?.trim()) return setError("Please add the children's ages.")
+    const enquiry: Enquiry = {
+      reference: makeRef('LHV-E'),
+      checkIn: data.checkIn,
+      checkOut: data.checkOut,
+      adults: Number(data.adults),
+      children: Number(data.children),
+      ages: data.ages || '',
+      stayType: data.stayType,
+      name: data.name,
+      mobile: data.mobile,
+      notes: data.notes || '',
+      createdAt: new Date().toISOString(),
+    }
+    const saved = JSON.parse(localStorage.getItem('lhv-enquiries') || '[]')
+    saved.unshift(enquiry)
+    localStorage.setItem('lhv-enquiries', JSON.stringify(saved))
+    localStorage.removeItem('lhv-enquiry-draft')
+    const message = [
+      'Hello Little Hut Vacations, I would like to send an enquiry.',
+      `Reference: ${enquiry.reference}`,
+      `Check-in: ${enquiry.checkIn}`,
+      `Check-out: ${enquiry.checkOut}`,
+      `Adults: ${enquiry.adults}`,
+      `Children: ${enquiry.children}`,
+      enquiry.children ? `Children's ages: ${enquiry.ages}` : '',
+      `Preferred stay: ${enquiry.stayType}`,
+      `Guest name: ${enquiry.name}`,
+      `Mobile: ${enquiry.mobile}`,
+      enquiry.notes ? `Notes: ${enquiry.notes}` : '',
+    ].filter(Boolean).join('\n')
+    setReady({ message, reference: enquiry.reference })
+    window.open(`https://wa.me/${WA}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      {/* Header */}
-      <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#005F73]">
-                <Building className="h-5 w-5 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-[#005F73]">AzhaBoost</h1>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <LanguageToggle />
-              <ThemeToggle />
-              <Link href="/dashboard">
-                <Button>
-                  {language === 'ar' ? 'لوحة التحكم' : 'Dashboard'}
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
+    <main>
+      <header className="site-nav">
+        <a href="#top" className="brand"><span className="brand-mark">⌂</span><span>LITTLE HUT<small>VACATIONS</small></span></a>
+        <button className="menu-button" aria-label="Open navigation" onClick={() => document.body.classList.toggle('nav-open')}>Menu</button>
+        <nav className="nav-links" aria-label="Primary navigation">
+          <a href="#stays">Stays</a><a href="#feeling">The Feeling</a><a href="#ritual">Ain Sokhna</a><Link href="/list-your-property">For Owners</Link>
+          <a href={`https://wa.me/${WA}`} target="_blank" rel="noreferrer">WhatsApp</a>
+          <Link className="button small" href="/list-your-property">List Your Property</Link>
+        </nav>
       </header>
 
-      {/* Hero Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <Badge variant="secondary" className="mb-4 text-[#005F73] border-[#005F73]/20">
-            <Zap className="h-3 w-3 mr-1" />
-            {language === 'ar' ? 'مدعوم بالذكاء الاصطناعي' : 'AI-Powered Platform'}
-          </Badge>
-          
-          <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-[#005F73] to-[#94D2BD] bg-clip-text text-transparent">
-            {language === 'ar' 
-              ? 'نظام إدارة العقارات الذكي'
-              : 'Intelligent Property Management'
-            }
-          </h1>
-          
-          <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
-            {language === 'ar'
-              ? 'منصة شاملة ثنائية اللغة لإدارة العقارات في أزها مع تحسين الذكاء الاصطناعي والأقفال الذكية والعمليات المؤتمتة'
-              : 'Comprehensive bilingual platform for managing Azha properties with AI optimization, smart locks, and automated operations'
-            }
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/dashboard">
-              <Button size="lg" className="bg-[#005F73] hover:bg-[#005F73]/90 text-white">
-                {language === 'ar' ? 'ابدأ الآن' : 'Get Started'}
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-            <Link href="/check-in">
-              <Button size="lg" variant="outline" className="border-[#005F73] text-[#005F73]">
-                {language === 'ar' ? 'تسجيل الوصول' : 'Guest Check-in'}
-              </Button>
-            </Link>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16">
-            {stats.map((stat, index) => (
-              <Card key={index} className="border-[#005F73]/10">
-                <CardContent className="p-6 text-center">
-                  <div className="text-3xl font-bold text-[#005F73] mb-2">
-                    {stat.value}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {language === 'ar' ? stat.labelAr : stat.labelEn}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+      <section className="hero" id="top">
+        <div className="hero-copy">
+          <p className="eyebrow">AIN SOKHNA IS YOUR PLAYGROUND</p>
+          <h1>You forgot what this felt like.<em>Here it is again.</em></h1>
+          <p className="lead">A few days in Ain Sokhna where nobody is managing the moment and ordinary things feel good again.</p>
+          <div className="actions"><a className="button" href="#enquiry">Find your few days</a><a className="text-link" href="#feeling">See the feeling</a></div>
         </div>
+        <div className="hero-photo" role="img" aria-label="Editorial Ain Sokhna mood photograph of a quiet sea-view terrace"><span>Editorial mood photography — not property inventory</span></div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4 text-[#005F73]">
-              {language === 'ar' ? 'المميزات الرئيسية' : 'Key Features'}
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              {language === 'ar'
-                ? 'منصة متكاملة مصممة خصيصاً لإدارة عقارات أزها بكفاءة وذكاء'
-                : 'Comprehensive platform designed specifically for efficient and intelligent Azha property management'
-              }
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {features.map((feature, index) => (
-              <Card key={index} className="border-[#005F73]/10 hover:border-[#005F73]/30 transition-colors group">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-[#94D2BD]/20 flex items-center justify-center group-hover:bg-[#94D2BD]/30 transition-colors">
-                      <feature.icon className="h-5 w-5 text-[#005F73]" />
-                    </div>
-                    <CardTitle className="text-[#005F73]">
-                      {language === 'ar' ? feature.titleAr : feature.titleEn}
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="leading-relaxed">
-                    {language === 'ar' ? feature.descAr : feature.descEn}
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+      <section className="enquiry-section" id="enquiry">
+        <div className="section-intro"><p className="eyebrow">DIRECT ENQUIRY BY LITTLE HUT VACATIONS</p><h2>Tell us when you want it back</h2><p>We save the details in this browser before opening WhatsApp. This is an enquiry, not a confirmed reservation.</p></div>
+        <form className="enquiry-form" onSubmit={submit} onInput={(e) => saveDraft(e.currentTarget)}>
+          <div className="two"><label>Check-in date*<input name="checkIn" type="date" min={minDate} required /></label><label>Check-out date*<input name="checkOut" type="date" min={minDate} required /></label></div>
+          <div className="two"><label>Adults*<input name="adults" type="number" min="1" max="20" defaultValue="2" required /></label><label>Children*<input name="children" type="number" min="0" max="12" defaultValue="0" required onChange={(e) => setChildren(Number(e.target.value))} /></label></div>
+          {children > 0 && <label>Children’s ages*<input name="ages" placeholder="For example: 4, 7" required /></label>}
+          <label>Preferred stay type*<select name="stayType" required defaultValue=""><option value="" disabled>Select one</option><option>Family time</option><option>Couple escape</option><option>Quiet reset</option><option>Pool or lagoon access</option><option>Sea view</option><option>No preference</option></select></label>
+          <div className="two"><label>Guest name*<input name="name" autoComplete="name" required /></label><label>Mobile number*<input name="mobile" type="tel" inputMode="tel" autoComplete="tel" required /></label></div>
+          <label>Optional notes<textarea name="notes" rows={4} placeholder="Anything that would make the stay feel right?" /></label>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <button className="button full" type="submit">Prepare WhatsApp enquiry</button>
+          <p className="form-note">Official WhatsApp: <strong>{PHONE}</strong></p>
+        </form>
+        {ready && <div className="success-panel" aria-live="polite"><h3>Your enquiry is ready to send.</h3><p>Reference: <strong>{ready.reference}</strong></p><div className="actions"><button className="button" onClick={() => navigator.clipboard.writeText(ready.message)}>Copy message</button><a className="button secondary" href={`https://wa.me/${WA}?text=${encodeURIComponent(ready.message)}`} target="_blank" rel="noreferrer">Retry WhatsApp</a><a className="text-link" href="#enquiry">Return to enquiry</a></div><p>Official number: {PHONE}</p></div>}
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <Card className="border-[#005F73]/20 bg-gradient-to-r from-[#005F73]/5 to-[#94D2BD]/5">
-            <CardContent className="p-12">
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <Star className="h-5 w-5 text-[#005F73]" />
-                <Badge variant="secondary" className="text-[#005F73]">
-                  {language === 'ar' ? 'جاهز للإنتاج' : 'Production Ready'}
-                </Badge>
-                <Star className="h-5 w-5 text-[#005F73]" />
-              </div>
-              
-              <h2 className="text-3xl font-bold mb-4 text-[#005F73]">
-                {language === 'ar' 
-                  ? 'ابدأ رحلتك مع أزها بوست اليوم'
-                  : 'Start Your AzhaBoost Journey Today'
-                }
-              </h2>
-              
-              <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-                {language === 'ar'
-                  ? 'انضم إلى مئات مالكي العقارات الذين يستخدمون أزها بوست لتحسين عوائدهم وتبسيط عملياتهم'
-                  : 'Join hundreds of property owners who use AzhaBoost to optimize their returns and streamline operations'
-                }
-              </p>
+      <section id="feeling" className="feeling-section"><div className="section-intro"><p className="eyebrow">THE FEELING</p><h2>Ordinary things, working again.</h2></div><div className="moment-grid">
+        <article><div className="moment-photo coffee" /><h3>The coffee stayed warm.</h3><p>That was the first surprise.</p></article>
+        <article><div className="moment-photo game" /><h3>They made up a game.</h3><p>You were not required to understand it.</p></article>
+        <article><div className="moment-photo drinks" /><h3>The ice melted.</h3><p>The conversation did not.</p></article>
+      </div><p className="photo-disclaimer">These are editorial mood images. They are not presented as photographs of available properties.</p></section>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/dashboard">
-                  <Button size="lg" className="bg-[#005F73] hover:bg-[#005F73]/90 text-white">
-                    <Building className="mr-2 h-4 w-4" />
-                    {language === 'ar' ? 'ابدأ إدارة عقاراتك' : 'Manage Your Properties'}
-                  </Button>
-                </Link>
-                <Link href="/check-in">
-                  <Button size="lg" variant="outline" className="border-[#94D2BD] text-[#005F73]">
-                    <Users className="mr-2 h-4 w-4" />
-                    {language === 'ar' ? 'بوابة النزلاء' : 'Guest Portal'}
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+      <section id="stays" className="stays-section"><div className="section-intro"><p className="eyebrow">REAL STAYS</p><h2>Homes for the feeling.</h2></div><div className="honest-panel"><h3>More Little Hut stays are being prepared.</h3><p>No property, amenity, rate or availability is shown publicly until it is verified. Tell us your dates and we will reply with the genuine options available.</p><a className="button" href="#enquiry">Send an enquiry</a></div></section>
 
-      {/* Footer */}
-      <footer className="border-t bg-background/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-6 w-6 items-center justify-center rounded bg-[#005F73]">
-                <Building className="h-4 w-4 text-white" />
-              </div>
-              <span className="font-semibold text-[#005F73]">AzhaBoost</span>
-            </div>
-            
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Globe className="h-4 w-4" />
-                <span>{language === 'ar' ? 'متعدد اللغات' : 'Multilingual'}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Shield className="h-4 w-4" />
-                <span>{language === 'ar' ? 'آمن ومحمي' : 'Secure & Protected'}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground">
-            © 2024 AzhaBoost. {language === 'ar' ? 'جميع الحقوق محفوظة' : 'All rights reserved'}.
-          </div>
-        </div>
-      </footer>
-    </div>
+      <section id="ritual"><div className="section-intro"><p className="eyebrow">THE SOKHNA RITUAL</p><h2>It starts before the sea appears.</h2></div><ol className="ritual-grid"><li><b>1. Leaving</b><p>The city gets quieter before the car does.</p></li><li><b>2. The air changes</b><p>You notice it before you see the sea.</p></li><li><b>3. First glimpse</b><p>There. That is the week getting smaller.</p></li><li><b>4. Arrival</b><p>Shoes off. Phones down. Nothing urgent.</p></li><li><b>5. You take it home</b><p>You left the keys. You kept the feeling.</p></li></ol></section>
+
+      <section className="owner-cta"><div><p className="eyebrow">FOR OWNERS</p><h2>Have a home made for this feeling?</h2><p>Little Hut is building a focused collection, not an open marketplace. Tell us about your property and how it is operated.</p></div><div className="actions"><Link className="button" href="/list-your-property">Start property submission</Link><a className="text-link" href={`https://wa.me/${WA}`} target="_blank" rel="noreferrer">Contact Little Hut on WhatsApp</a></div></section>
+
+      <section className="final-cta"><h2>Ready to have it back?</h2><p>Your few days are closer than you think.</p><a className="button light" href={`https://wa.me/${WA}`} target="_blank" rel="noreferrer">Book on WhatsApp · {PHONE}</a><small>Conversation only. Availability and confirmation follow separately.</small></section>
+      <footer><span>Little Hut Vacations · Ain Sokhna</span><span>Direct enquiry by Little Hut Vacations</span><span>{PHONE}</span></footer>
+    </main>
   )
 }
