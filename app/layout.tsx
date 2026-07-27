@@ -1,5 +1,5 @@
 import './globals.css'
-import type { Metadata, Viewport } from 'next'
+import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://little-hut-stayza-direct-v2.vercel.app'),
@@ -8,6 +8,8 @@ export const metadata: Metadata = {
     template: '%s | Little Hut Vacations',
   },
   description: 'A few days in Ain Sokhna where nobody is managing the moment and ordinary things feel good again.',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=5',
+  themeColor: '#f7efe6',
   openGraph: {
     title: 'Little Hut Vacations | Here it is again',
     description: 'Tell us when you want it back.',
@@ -17,13 +19,6 @@ export const metadata: Metadata = {
   },
   icons: { icon: '/favicon.svg' },
   robots: { index: true, follow: true },
-}
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 5,
-  themeColor: '#f7efe6',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
