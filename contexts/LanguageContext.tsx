@@ -15,16 +15,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguage] = useState<Language>('en')
 
   useEffect(() => {
-    // Load language preference from localStorage
-    const savedLanguage = localStorage.getItem('azhaboost-language') as Language
+    const savedLanguage = localStorage.getItem('little-hut-language') as Language
     if (savedLanguage && ['en', 'ar'].includes(savedLanguage)) {
       setLanguage(savedLanguage)
+      return
+    }
+    if (navigator.language.toLowerCase().startsWith('ar')) {
+      setLanguage('ar')
     }
   }, [])
 
   useEffect(() => {
-    // Save language preference and update document direction
-    localStorage.setItem('azhaboost-language', language)
+    localStorage.setItem('little-hut-language', language)
     document.documentElement.lang = language
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr'
   }, [language])

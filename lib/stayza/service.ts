@@ -1,5 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { getPropertyById, properties } from './catalog'
+import {
+  getBookablePropertyById,
+  isPubliclyBookable,
+  properties,
+} from './catalog'
 import { buildQuote, stayDates } from './pricing'
 import {
   getRecordStore,
@@ -24,6 +28,12 @@ export class AvailabilityError extends Error {
 export class RateLimitError extends Error {
   constructor() {
     super('Too many requests. Please try again later.')
+  }
+}
+
+export class BookingGateError extends Error {
+  constructor() {
+    super('This home is not verified and open for booking through Little Hut.')
   }
 }
 
@@ -68,7 +78,8 @@ export async function availablePropertyIds(input: {
 }) {
   const dates = stayDates(input.checkIn, input.checkOut)
   const eligible = properties.filter(
-    (property) => property.active && input.guests <= property.maxGuests,
+    (property) =>
+      isPubliclyBookable(property) && input.guests <= property.maxGuests,
   )
   const results = await Promise.all(
     eligible.map(async (property) => {
@@ -123,8 +134,8 @@ function makeReference(prefix: 'LHV' | 'OWNER') {
 }
 
 export async function createBooking(input: BookingRequestInput) {
-  const property = getPropertyById(input.propertyId)
-  if (!property) throw new Error('Property not found.')
+  const property = getBookablePropertyById(input.propertyId)
+  if (!property) throw new BookingGateError()
   if (input.adults + input.children > property.maxGuests) {
     throw new Error(
       `${property.name} accommodates up to ${property.maxGuests} guests.`,

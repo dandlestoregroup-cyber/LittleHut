@@ -4,6 +4,20 @@ This repository is the public Little Hut booking website and its Stayza
 Model Context Protocol (MCP) server. A booking or property application is
 recorded in the shared booking ledger; neither journey redirects to WhatsApp.
 
+The guest experience follows **The Little Hut Day**: Moment-led discovery,
+evidence-backed property truth, and increasingly explicit booking steps. The
+core visual system uses linen and terracotta, with midnight reserved for night
+Moments. English and Arabic/RTL are first-class interface modes.
+
+## Property truth gate
+
+- `joining` homes may show source-reported Potential Moments only.
+- Joining homes never expose dates, public pricing, quotes, or booking actions.
+- A home becomes bookable only when its truth state is `verified`, booking is
+  enabled, and its public property media is approved.
+- Public pages and APIs keep verified inventory separate from Joining Little
+  Hut candidates.
+
 ## Guest journeys
 
 - Search available dates and guest capacity.
@@ -73,5 +87,6 @@ npm test
 npm run build
 ```
 
-The test suite covers quoting and minimum-stay validation, central booking
-creation, conflict rejection, private status lookup, and owner applications.
+The test suite covers the property truth gate, quoting and minimum-stay
+validation, central booking creation, conflict rejection, private status
+lookup, and owner applications.

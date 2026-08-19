@@ -1,6 +1,10 @@
 import { createMcpHandler } from 'mcp-handler'
 import { z } from 'zod'
-import { getPropertyById, properties } from '@/lib/stayza/catalog'
+import {
+  getPropertyById,
+  isPubliclyBookable,
+  properties,
+} from '@/lib/stayza/catalog'
 import { buildQuote, formatEgp } from '@/lib/stayza/pricing'
 import {
   availablePropertyIds,
@@ -169,27 +173,42 @@ const handler = createMcpHandler(
 
     server.tool(
       'get_property_details',
-      'Get the verified public booking facts for one Little Hut property.',
+      'Get the public truth state for one Little Hut property. Joining homes are potential matches only and never include bookable pricing or availability claims.',
       { propertyId: z.string().min(1) },
       async ({ propertyId }) => {
         const property = getPropertyById(propertyId)
-        return text(
-          property
+        if (!property) return text({ found: false })
+
+        const verifiedAndBookable = isPubliclyBookable(property)
+        return text({
+          found: true,
+          id: property.id,
+          name: property.name,
+          location: property.location,
+          locationAr: property.locationAr,
+          description: property.description,
+          descriptionAr: property.descriptionAr,
+          truthStatus: property.truthStatus,
+          bookingEnabled: verifiedAndBookable,
+          mediaStatus: property.mediaStatus,
+          sourceNote: property.sourceNote,
+          sourceNoteAr: property.sourceNoteAr,
+          honestLimitations: property.honestLimitations,
+          honestLimitationsAr: property.honestLimitationsAr,
+          momentMatches: property.momentMatches,
+          ...(verifiedAndBookable
             ? {
-                id: property.id,
-                name: property.name,
-                location: property.location,
-                description: property.description,
                 maxGuests: property.maxGuests,
                 bedrooms: property.bedrooms,
                 bathrooms: property.bathrooms,
                 features: property.features,
+                featuresAr: property.featuresAr,
                 minimumNights: property.minimumNights,
                 fromRate: property.minimumSuggestedRate,
                 currency: property.currency,
               }
-            : { found: false },
-        )
+            : {}),
+        })
       },
     )
   },

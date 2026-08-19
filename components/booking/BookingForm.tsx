@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { CalendarDays, Check, LockKeyhole, Users } from 'lucide-react'
 
 interface Quote {
@@ -233,7 +234,14 @@ export function BookingForm({
         </div>
 
         <aside className="booking-summary">
-          <img src={property.heroImage} alt={property.name} />
+          <div className="summary-image">
+            <Image
+              src={property.heroImage}
+              alt={property.name}
+              fill
+              sizes="(max-width: 980px) 100vw, 410px"
+            />
+          </div>
           <div className="summary-body">
             <span className="eyebrow">Your request</span>
             <h2>{property.name}</h2>

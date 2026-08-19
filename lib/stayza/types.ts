@@ -1,3 +1,5 @@
+import type { MomentSlug } from '../moments'
+
 export type BookingStatus =
   | 'requested'
   | 'confirmed'
@@ -19,8 +21,11 @@ export interface StayProperty {
   slug: string
   name: string
   location: string
+  locationAr: string
   summary: string
+  summaryAr: string
   description: string
+  descriptionAr: string
   propertyType: 'villa' | 'chalet' | 'apartment'
   maxGuests: number
   bedrooms: number
@@ -32,6 +37,21 @@ export interface StayProperty {
   heroImage: string
   gallery: string[]
   features: string[]
+  featuresAr: string[]
+  truthStatus: 'joining' | 'verified'
+  bookingEnabled: boolean
+  mediaStatus: 'editorial-teaser' | 'approved-property'
+  sourceNote: string
+  sourceNoteAr: string
+  honestLimitations: string[]
+  honestLimitationsAr: string[]
+  momentMatches: Array<{
+    moment: MomentSlug
+    status: 'potential' | 'verified'
+    reason: string
+    reasonAr: string
+    evidenceSource: 'source-reported' | 'truth-card'
+  }>
   ratePeriods: RatePeriod[]
   active: boolean
 }

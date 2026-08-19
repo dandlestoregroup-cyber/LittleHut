@@ -1,4 +1,4 @@
-import { getPropertyById } from './catalog'
+import { getBookablePropertyById } from './catalog'
 import type { QuoteNight, StayProperty, StayQuote } from './types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -77,7 +77,7 @@ export function buildQuote(input: {
   checkOut: string
   guests: number
 }): StayQuote {
-  const property = getPropertyById(input.propertyId)
+  const property = getBookablePropertyById(input.propertyId)
   if (!property) {
     throw new QuoteError('This stay is not available for direct booking.', 'property_not_found')
   }

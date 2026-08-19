@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
-import { AvailabilityError, RateLimitError } from './service'
+import {
+  AvailabilityError,
+  BookingGateError,
+  RateLimitError,
+} from './service'
 import { QuoteError } from './pricing'
 import { StorageNotConfiguredError } from './storage'
 
@@ -33,6 +37,12 @@ export function apiError(error: unknown) {
         code: 'dates_unavailable',
         unavailableDates: error.unavailableDates,
       },
+      { status: 409 },
+    )
+  }
+  if (error instanceof BookingGateError) {
+    return NextResponse.json(
+      { error: error.message, code: 'home_not_bookable' },
       { status: 409 },
     )
   }

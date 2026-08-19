@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, test } from 'node:test'
 import { buildQuote, QuoteError } from '../lib/stayza/pricing'
+import { properties } from '../lib/stayza/catalog'
 import {
   AvailabilityError,
   createBooking,
@@ -28,11 +29,50 @@ beforeEach(async () => {
   process.env.STAYZA_ALLOW_FILE_STORE = '1'
   delete process.env.VERCEL
   resetRecordStoreForTests()
+  properties[0].truthStatus = 'verified'
+  properties[0].bookingEnabled = true
+  properties[0].mediaStatus = 'approved-property'
 })
 
 afterEach(async () => {
   resetRecordStoreForTests()
+  properties[0].truthStatus = 'joining'
+  properties[0].bookingEnabled = false
+  properties[0].mediaStatus = 'editorial-teaser'
   await rm(dataDirectory, { recursive: true, force: true })
+})
+
+test('blocks quotes and booking requests until every public truth gate passes', async () => {
+  properties[0].truthStatus = 'joining'
+  properties[0].bookingEnabled = false
+  properties[0].mediaStatus = 'editorial-teaser'
+
+  assert.throws(
+    () =>
+      buildQuote({
+        propertyId: 'prop-salty-life-villa',
+        checkIn: futureDate(10),
+        checkOut: futureDate(12),
+        guests: 2,
+      }),
+    (error) =>
+      error instanceof QuoteError && error.code === 'property_not_found',
+  )
+
+  await assert.rejects(
+    () =>
+      createBooking({
+        propertyId: 'prop-salty-life-villa',
+        guestName: 'Test Guest',
+        guestEmail: 'guest@example.com',
+        guestPhone: '+20 100 000 0000',
+        adults: 2,
+        children: 0,
+        checkIn: futureDate(20),
+        checkOut: futureDate(22),
+      }),
+    /not verified and open for booking/i,
+  )
 })
 
 test('builds the authoritative EGP quote and enforces the minimum stay', () => {
