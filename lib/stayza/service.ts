@@ -288,7 +288,15 @@ export async function createOwnerBlock(input: {
 
 export async function removeOwnerBlock(propertyId: string, dates: string[]) {
   await Promise.all(
-    dates.map((date) => getRecordStore().delete(lockPath(propertyId, date))),
+    dates.map(async (date) => {
+      const path = lockPath(propertyId, date)
+      const record = await getRecordStore().getJson<AvailabilityLock>(path)
+      // The lock path is shared with guest booking holds/confirmations, so
+      // only release a lock this function actually created — never a
+      // guest's booking lock that happens to occupy the same date.
+      if (!record || record.value.bookingReference !== 'OWNER-BLOCK') return
+      await getRecordStore().delete(path, record.etag)
+    }),
   )
 }
 

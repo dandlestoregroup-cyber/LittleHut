@@ -1,5 +1,6 @@
 import { assertPermission } from './permissions'
 import { recordAudit } from './audit'
+import { ownerApplicationSchema } from '../stayza/validation'
 import type { AgentContext } from './types'
 
 const REQUIRED_FIELDS = [
@@ -95,6 +96,21 @@ export async function processIntake(
 
   const operationNotes = normalizeString(raw.operationNotes)
   if (operationNotes) normalized.operationNotes = operationNotes
+
+  // Re-use the exact bounds the domain layer enforces at submission time
+  // (lib/stayza/validation.ts#ownerApplicationSchema) rather than duplicating
+  // them here, so a field that intake calls "ready" always actually is.
+  for (const field of REQUIRED_FIELDS) {
+    const value = normalized[field]
+    if (value === undefined) continue
+    const fieldSchema = ownerApplicationSchema.shape[field]
+    const result = fieldSchema.safeParse(value)
+    if (!result.success) {
+      contradictions.push(
+        `Reported ${field} "${value}" does not meet the accepted format or range.`,
+      )
+    }
+  }
 
   const missingFields = REQUIRED_FIELDS.filter(
     (field) => normalized[field] === undefined,

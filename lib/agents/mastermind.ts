@@ -1,4 +1,5 @@
 import { nextBestAction as momentsNextBestAction } from './momentsAgent'
+import { createAgentContext } from './permissions'
 import type { AgentContext, JourneyState, NextBestAction } from './types'
 
 /**
@@ -29,5 +30,9 @@ export async function route(
       requiresHumanApproval: false,
     }
   }
-  return momentsNextBestAction(context, state)
+  // Delegate under a context scoped to the Moments agent's own permissions
+  // (mastermind itself is only granted audit:read/exception:read), while
+  // preserving the caller's actual role/actor for the audit trail.
+  const momentsContext = createAgentContext('moments', context.role, context.actorId)
+  return momentsNextBestAction(momentsContext, state)
 }

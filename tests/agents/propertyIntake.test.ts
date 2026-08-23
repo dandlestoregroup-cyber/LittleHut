@@ -52,3 +52,26 @@ test('property intake flags contradictions instead of guessing a resolution', as
   assert.ok(result.contradictions.some((c) => c.includes('capacity')))
   assert.equal(result.readyForApplication, false)
 })
+
+test('property intake rejects values that would fail the authoritative application schema', async () => {
+  // Regression test: a fully-populated submission with maxGuests: 0 (or
+  // other out-of-range values) previously came back readyForApplication:
+  // true even though ownerApplicationSchema requires at least one guest —
+  // callers would then fail submitting it downstream.
+  const context = createAgentContext('property-intake', 'system')
+  const result = await processIntake(context, {
+    ownerName: 'Test Owner',
+    email: 'owner@example.com',
+    phone: '+20 100 000 0000',
+    propertyName: 'Test Villa',
+    location: 'Azha',
+    propertyType: 'villa',
+    bedrooms: 0,
+    maxGuests: 0,
+    operationNotes: 'Local operating team handles cleaning and access.',
+  })
+
+  assert.equal(result.missingFields.length, 0)
+  assert.ok(result.contradictions.some((c) => c.includes('maxGuests')))
+  assert.equal(result.readyForApplication, false)
+})
