@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import {
   getBookablePropertyById,
+  getPropertyById,
   isPubliclyBookable,
   properties,
 } from './catalog'
@@ -240,6 +241,55 @@ export async function getBookingStatus(reference: string, email: string) {
     currency: booking.quote.currency,
     holdExpiresAt: booking.holdExpiresAt,
   }
+}
+
+/**
+ * Owner-initiated date blocks reuse the exact same lock primitives that
+ * guest bookings use (`acquireLock` / `readActiveLock`), so an owner block is
+ * enforced by the identical authoritative availability check — there is no
+ * separate "owner availability" data model to fall out of sync.
+ */
+export async function createOwnerBlock(input: {
+  propertyId: string
+  checkIn: string
+  checkOut: string
+  reason?: string
+}) {
+  const property = getPropertyById(input.propertyId)
+  if (!property) throw new Error(`Unknown property ${input.propertyId}.`)
+
+  const dates = stayDates(input.checkIn, input.checkOut)
+  const blockId = `OWNER-BLOCK-${randomUUID()}`
+  const now = new Date()
+  const farFuture = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000)
+  const acquired: string[] = []
+
+  try {
+    for (const date of dates) {
+      const pathname = await acquireLock({
+        bookingId: blockId,
+        bookingReference: 'OWNER-BLOCK',
+        propertyId: property.id,
+        date,
+        status: 'confirmed',
+        expiresAt: farFuture.toISOString(),
+        createdAt: now.toISOString(),
+      })
+      acquired.push(pathname)
+    }
+  } catch (error) {
+    await Promise.all(acquired.map((pathname) => getRecordStore().delete(pathname)))
+    if (error instanceof RecordConflictError) throw new AvailabilityError(dates)
+    throw error
+  }
+
+  return { blockId, propertyId: property.id, dates, reason: input.reason }
+}
+
+export async function removeOwnerBlock(propertyId: string, dates: string[]) {
+  await Promise.all(
+    dates.map((date) => getRecordStore().delete(lockPath(propertyId, date))),
+  )
 }
 
 export async function createOwnerApplication(
