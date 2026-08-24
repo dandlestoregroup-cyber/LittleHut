@@ -12,6 +12,7 @@ const footerCopy = {
     track: 'Track a stay',
     owners: 'Owners',
     submit: 'Submit a home',
+    ownerStatus: 'Track your application',
     support: 'Need human help?',
     whatsapp: 'WhatsApp support',
     supportNote: 'Support only — booking and truth states stay on this website.',
@@ -25,6 +26,7 @@ const footerCopy = {
     track: 'تابع إقامتك',
     owners: 'المُلّاك',
     submit: 'قدّم بيتك',
+    ownerStatus: 'تابع طلبك',
     support: 'تحتاج مساعدة بشرية؟',
     whatsapp: 'الدعم عبر واتساب',
     supportNote: 'للدعم فقط — الحجز وحالة التحقق يبقيان داخل الموقع.',
@@ -55,6 +57,7 @@ export function SiteFooter() {
         <div>
           <b>{labels.owners}</b>
           <Link href="/owners/apply">{labels.submit}</Link>
+          <Link href="/owners/status">{labels.ownerStatus}</Link>
         </div>
         <div>
           <b>{labels.support}</b>

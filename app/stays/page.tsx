@@ -2,6 +2,7 @@ import { StaysExplorer } from '@/components/stays/StaysExplorer'
 import { SiteFooter } from '@/components/site/SiteFooter'
 import { SiteHeader } from '@/components/site/SiteHeader'
 import { properties } from '@/lib/stayza/catalog'
+import { publicPropertyView } from '@/lib/stayza/access'
 
 function valueOf(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
@@ -17,29 +18,11 @@ export default async function StaysPage({
   const guests = Number.isInteger(requestedGuests)
     ? Math.min(8, Math.max(1, requestedGuests))
     : 2
+  // Projected through the single canonical audience gate rather than a local
+  // field list, so this page can never drift from the public API's view.
   const publicHomes = properties
     .filter((property) => property.active)
-    .map((property) => ({
-      id: property.id,
-      slug: property.slug,
-      name: property.name,
-      location: property.location,
-      locationAr: property.locationAr,
-      summary: property.summary,
-      summaryAr: property.summaryAr,
-      heroImage: property.heroImage,
-      truthStatus: property.truthStatus,
-      bookingEnabled:
-        property.truthStatus === 'verified' &&
-        property.bookingEnabled &&
-        property.mediaStatus === 'approved-property',
-      mediaStatus: property.mediaStatus,
-      sourceNote: property.sourceNote,
-      sourceNoteAr: property.sourceNoteAr,
-      honestLimitations: property.honestLimitations,
-      honestLimitationsAr: property.honestLimitationsAr,
-      momentMatches: property.momentMatches,
-    }))
+    .map(publicPropertyView)
 
   return (
     <main className="page-background">

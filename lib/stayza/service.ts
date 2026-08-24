@@ -300,12 +300,155 @@ export async function removeOwnerBlock(propertyId: string, dates: string[]) {
   )
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Enumerates the nights of an existing booking WITHOUT the forward-dated
+ * validation `stayDates` applies. Operator actions (confirming, declining,
+ * cancelling) must work on bookings whose dates have already passed, which
+ * the guest-facing validator deliberately rejects.
+ */
+function bookedNights(checkIn: string, checkOut: string): string[] {
+  const start = new Date(`${checkIn}T00:00:00.000Z`).getTime()
+  const end = new Date(`${checkOut}T00:00:00.000Z`).getTime()
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return []
+  const nights = Math.round((end - start) / DAY_MS)
+  return Array.from({ length: nights }, (_, index) =>
+    new Date(start + index * DAY_MS).toISOString().slice(0, 10),
+  )
+}
+
+/** Operator-only: every booking in the ledger, newest first. */
+export async function listBookings(): Promise<BookingRecord[]> {
+  const records = await getRecordStore().listJson<BookingRecord>(
+    'stayza/bookings/by-reference/',
+  )
+  return records
+    .map((record) => record.value)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+/** Operator-only: every owner application, newest first. */
+export async function listOwnerApplications(): Promise<OwnerApplication[]> {
+  const records = await getRecordStore().listJson<OwnerApplication>(
+    'stayza/owner-applications/',
+  )
+  return records
+    .map((record) => record.value)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+/**
+ * Owner self-service: an owner may look up their OWN application with the
+ * reference plus the email they applied with. Mirrors the guest booking
+ * lookup so owners are not left with no visibility after submitting.
+ */
+export async function getOwnerApplicationStatus(
+  reference: string,
+  email: string,
+): Promise<OwnerApplication | null> {
+  const record = await getRecordStore().getJson<OwnerApplication>(
+    ownerApplicationPath(reference.toUpperCase()),
+  )
+  if (!record) return null
+  // Compare case-insensitively on BOTH sides so applications stored before
+  // emails were normalized on write remain reachable by their owner.
+  if (
+    record.value.email.trim().toLowerCase() !== email.trim().toLowerCase()
+  ) {
+    return null
+  }
+  return record.value
+}
+
+export async function setOwnerApplicationStatus(
+  reference: string,
+  status: OwnerApplication['status'],
+): Promise<OwnerApplication> {
+  const path = ownerApplicationPath(reference.toUpperCase())
+  const record = await getRecordStore().getJson<OwnerApplication>(path)
+  if (!record) throw new Error(`No owner application found for ${reference}.`)
+  const updated: OwnerApplication = { ...record.value, status }
+  await getRecordStore().putJson(path, updated, { overwrite: true })
+  return updated
+}
+
+export async function getBookingForOperator(
+  reference: string,
+): Promise<BookingRecord | null> {
+  const record = await getRecordStore().getJson<BookingRecord>(
+    bookingPath(reference.toUpperCase()),
+  )
+  return record?.value ?? null
+}
+
+/**
+ * The operator decision on a booking request. Confirming promotes every held
+ * night to a confirmed lock (so the hold can no longer lapse); declining or
+ * cancelling releases only the locks belonging to THIS booking, never a lock
+ * another booking owns on the same night.
+ */
+export async function setBookingStatus(
+  reference: string,
+  status: BookingRecord['status'],
+): Promise<BookingRecord> {
+  const store = getRecordStore()
+  const path = bookingPath(reference.toUpperCase())
+  const record = await store.getJson<BookingRecord>(path)
+  if (!record) throw new Error(`No booking found for ${reference}.`)
+
+  const booking = record.value
+  const nights = bookedNights(booking.checkIn, booking.checkOut)
+
+  if (status === 'confirmed') {
+    await Promise.all(
+      nights.map(async (date) => {
+        const lockPathname = lockPath(booking.propertyId, date)
+        const lock = await store.getJson<AvailabilityLock>(lockPathname)
+        if (!lock || lock.value.bookingId !== booking.id) return
+        await store.putJson(
+          lockPathname,
+          {
+            ...lock.value,
+            status: 'confirmed',
+            expiresAt: new Date(Date.now() + 100 * 365 * DAY_MS).toISOString(),
+          },
+          { overwrite: true },
+        )
+      }),
+    )
+  }
+
+  if (status === 'declined' || status === 'cancelled' || status === 'expired') {
+    await Promise.all(
+      nights.map(async (date) => {
+        const lockPathname = lockPath(booking.propertyId, date)
+        const lock = await store.getJson<AvailabilityLock>(lockPathname)
+        // Only release a lock this booking actually owns.
+        if (!lock || lock.value.bookingId !== booking.id) return
+        await store.delete(lockPathname, lock.etag)
+      }),
+    )
+  }
+
+  const updated: BookingRecord = {
+    ...booking,
+    status,
+    updatedAt: new Date().toISOString(),
+  }
+  await store.putJson(path, updated, { overwrite: true })
+  return updated
+}
+
 export async function createOwnerApplication(
   input: Omit<OwnerApplication, 'id' | 'reference' | 'status' | 'createdAt'>,
 ) {
   const reference = makeReference('OWNER')
   const record: OwnerApplication = {
     ...input,
+    // Normalized on write, exactly as guest booking emails are, so the
+    // owner's own status lookup matches regardless of how they typed it.
+    email: input.email.trim().toLowerCase(),
     id: randomUUID(),
     reference,
     status: 'submitted',

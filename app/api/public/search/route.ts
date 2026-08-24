@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { properties } from '@/lib/stayza/catalog'
+import { assertNoSecretFields, publicPropertyView } from '@/lib/stayza/access'
 import { apiError } from '@/lib/stayza/http'
 import { buildQuote } from '@/lib/stayza/pricing'
 import { availablePropertyIds } from '@/lib/stayza/service'
@@ -19,32 +20,16 @@ export async function GET(request: Request) {
     const results = properties
       .filter((property) => available.has(property.id))
       .map((property) => ({
-        property: {
-          id: property.id,
-          slug: property.slug,
-          name: property.name,
-          location: property.location,
-          locationAr: property.locationAr,
-          summary: property.summary,
-          summaryAr: property.summaryAr,
-          maxGuests: property.maxGuests,
-          bedrooms: property.bedrooms,
-          bathrooms: property.bathrooms,
-          heroImage: property.heroImage,
-          features: property.features,
-          truthStatus: property.truthStatus,
-          mediaStatus: property.mediaStatus,
-          momentMatches: property.momentMatches,
-          honestLimitations: property.honestLimitations,
-          honestLimitationsAr: property.honestLimitationsAr,
-        },
+        property: publicPropertyView(property),
         quote: buildQuote({
           propertyId: property.id,
           ...input,
         }),
       }))
 
-    return NextResponse.json({ search: input, results })
+    const payload = { search: input, results }
+    assertNoSecretFields(payload, 'public search')
+    return NextResponse.json(payload)
   } catch (error) {
     return apiError(error)
   }
